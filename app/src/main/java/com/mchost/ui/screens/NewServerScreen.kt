@@ -13,29 +13,25 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.FolderOpen
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -45,8 +41,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
+import com.mchost.ui.theme.JetBrainsMono
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -56,12 +51,20 @@ import com.mchost.network.modrinth.ModrinthContentKind
 import com.mchost.network.modrinth.PendingModrinthInstall
 import com.mchost.network.modrinth.supportsModrinthMods
 import com.mchost.network.modrinth.supportsModrinthPlugins
+import com.mchost.ui.components.CloudMcCard
+import com.mchost.ui.components.CloudMcOutlinedButton
+import com.mchost.ui.components.CloudMcPageHeader
+import com.mchost.ui.components.CloudMcPrimaryButton
+import com.mchost.ui.components.CloudMcSectionTitle
+import com.mchost.ui.components.CloudMcTopBar
+import com.mchost.ui.components.CloudMcWizardFooter
 import com.mchost.ui.components.ModrinthBrowseSheet
 import com.mchost.ui.components.PendingModrinthList
 import com.mchost.ui.components.StepProgressIndicator
 import com.mchost.ui.theme.Accent
+import com.mchost.ui.theme.Background
 import com.mchost.ui.theme.ErrorRed
-import com.mchost.ui.theme.Surface
+import com.mchost.ui.theme.TextPrimary
 import com.mchost.ui.theme.TextSecondary
 import com.mchost.util.FileImporter
 import com.mchost.viewmodel.CreateServerExtras
@@ -95,7 +98,7 @@ fun NewServerScreen(viewModel: MCHostViewModel, onDismiss: () -> Unit) {
     var gameVersions by remember { mutableStateOf<List<String>>(emptyList()) }
     val creating by viewModel.creatingServer.collectAsStateWithLifecycle()
     val maxMem = viewModel.maxDeviceMemoryMb()
-    val context = LocalContext.current
+    val context = androidx.compose.ui.platform.LocalContext.current
     val effectiveJarType = if (customJarUri != null) JarType.CUSTOM else jarType
 
     LaunchedEffect(Unit) {
@@ -144,90 +147,100 @@ fun NewServerScreen(viewModel: MCHostViewModel, onDismiss: () -> Unit) {
         return
     }
 
-    Column(
-        Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .padding(16.dp),
-    ) {
-        Row(
-            Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
+    val stepTitles = listOf(
+        "Server basics" to "Name your server and world folder",
+        "Server software" to "Choose platform and Minecraft version",
+        "Plugins, mods & datapacks" to "Optional — add now or later from Files",
+        "Resource allocation" to "Configure RAM and view distances",
+        "Review & launch" to "Port, EULA, and create your server",
+    )
+
+    Scaffold(
+        containerColor = Background,
+        topBar = { CloudMcTopBar(onClose = onDismiss) },
+    ) { padding ->
+        Column(
+            Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(horizontal = 16.dp),
         ) {
-            Text("Create server", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-            IconButton(onClick = onDismiss) { Icon(Icons.Default.Close, contentDescription = "Close") }
-        }
+            CloudMcPageHeader(
+                title = "New server",
+                stepLabel = "STEP ${step + 1} OF ${STEP_LABELS.size}",
+            )
+            StepProgressIndicator(step, STEP_LABELS)
 
-        StepProgressIndicator(step, STEP_LABELS)
+            CloudMcSectionTitle(
+                title = stepTitles[step].first,
+                subtitle = stepTitles[step].second,
+            )
+            Spacer(Modifier.height(12.dp))
 
-        Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
-            when (step) {
-                0 -> BasicsStep(serverName, { serverName = it }, worldName, { worldName = it })
-                1 -> SoftwareStep(
-                    jarType = jarType,
-                    onJarType = { jarType = it; if (it != JarType.CUSTOM) { customJarUri = null; customJarLabel = null } },
-                    jarExpanded = jarExpanded,
-                    onJarExpanded = { jarExpanded = it },
-                    version = version,
-                    onVersion = { version = it },
-                    versionExpanded = versionExpanded,
-                    onVersionExpanded = { versionExpanded = it },
-                    gameVersions = gameVersions,
-                    customJarLabel = customJarLabel,
-                    customJarName = customJarName,
-                    onCustomJarName = { customJarName = it },
-                    onPickJar = { customJarPicker.launch(arrayOf("*/*")) },
-                )
-                2 -> AddonsStep(
-                    jarType = effectiveJarType,
-                    worldName = worldName,
-                    pluginCount = pluginUris.size,
-                    modCount = modUris.size,
-                    datapackCount = datapackUris.size,
-                    modrinthPending = modrinthPending,
-                    onRemoveModrinth = { modrinthPending = modrinthPending - it },
-                    onImportPlugins = { pluginPicker.launch(arrayOf("*/*")) },
-                    onImportMods = { modPicker.launch(arrayOf("*/*")) },
-                    onImportDatapacks = {
-                        datapackPicker.launch(arrayOf("application/zip", "application/x-zip-compressed", "*/*"))
-                    },
-                    onBrowseModrinth = { modrinthBrowse = it },
-                )
-                3 -> PerformanceStep(
-                    memoryMb = memoryMb,
-                    onMemory = { memoryMb = it },
-                    maxMem = maxMem,
-                    viewDistance = viewDistance,
-                    onViewDistance = { viewDistance = it },
-                    simulationDistance = simulationDistance,
-                    onSimulationDistance = { simulationDistance = it },
-                )
-                4 -> LaunchStep(port, { port = it.toIntOrNull() ?: port }, eula, { eula = it })
+            Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
+                CloudMcCard {
+                    when (step) {
+                        0 -> BasicsStep(serverName, { serverName = it }, worldName, { worldName = it })
+                        1 -> SoftwareStep(
+                            jarType = jarType,
+                            onJarType = { jarType = it; if (it != JarType.CUSTOM) { customJarUri = null; customJarLabel = null } },
+                            jarExpanded = jarExpanded,
+                            onJarExpanded = { jarExpanded = it },
+                            version = version,
+                            onVersion = { version = it },
+                            versionExpanded = versionExpanded,
+                            onVersionExpanded = { versionExpanded = it },
+                            gameVersions = gameVersions,
+                            customJarLabel = customJarLabel,
+                            customJarName = customJarName,
+                            onCustomJarName = { customJarName = it },
+                            onPickJar = { customJarPicker.launch(arrayOf("*/*")) },
+                        )
+                        2 -> AddonsStep(
+                            jarType = effectiveJarType,
+                            worldName = worldName,
+                            pluginCount = pluginUris.size,
+                            modCount = modUris.size,
+                            datapackCount = datapackUris.size,
+                            modrinthPending = modrinthPending,
+                            onRemoveModrinth = { modrinthPending = modrinthPending - it },
+                            onImportPlugins = { pluginPicker.launch(arrayOf("*/*")) },
+                            onImportMods = { modPicker.launch(arrayOf("*/*")) },
+                            onImportDatapacks = {
+                                datapackPicker.launch(arrayOf("application/zip", "application/x-zip-compressed", "*/*"))
+                            },
+                            onBrowseModrinth = { modrinthBrowse = it },
+                        )
+                        3 -> PerformanceStep(
+                            memoryMb = memoryMb,
+                            onMemory = { memoryMb = it },
+                            maxMem = maxMem,
+                            viewDistance = viewDistance,
+                            onViewDistance = { viewDistance = it },
+                            simulationDistance = simulationDistance,
+                            onSimulationDistance = { simulationDistance = it },
+                        )
+                        4 -> LaunchStep(port, { port = it.toIntOrNull() ?: port }, eula, { eula = it }, serverName, jarType, version, memoryMb)
+                    }
+                }
             }
-        }
 
-        if (creating) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-                CircularProgressIndicator(color = Accent)
-                Text("Creating server…", modifier = Modifier.padding(start = 12.dp))
+            if (creating) {
+                Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(color = Accent)
+                    Text("Creating server…", modifier = Modifier.padding(start = 12.dp), color = TextSecondary)
+                }
             }
-        }
 
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            TextButton(onClick = { if (step > 0) step-- else onDismiss() }, enabled = !creating) {
-                Text(if (step > 0) "Back" else "Cancel")
-            }
-            if (step < 4) {
-                Button(
-                    onClick = { step++ },
-                    enabled = !creating && (step != 1 || jarStepValid),
-                    colors = ButtonDefaults.buttonColors(containerColor = Accent),
-                ) { Text("Next", color = Color.Black) }
-            } else {
-                val useCustom = jarType == JarType.CUSTOM || customJarUri != null
-                Button(
-                    onClick = {
+            CloudMcWizardFooter(
+                backLabel = if (step > 0) "Back" else "Cancel",
+                onBack = { if (step > 0) step-- else onDismiss() },
+                primaryLabel = if (step < 4) "Continue" else "Create server",
+                onPrimary = {
+                    if (step < 4) {
+                        step++
+                    } else {
+                        val useCustom = jarType == JarType.CUSTOM || customJarUri != null
                         val config = ServerConfig(
                             serverName = serverName,
                             worldName = worldName,
@@ -251,11 +264,18 @@ fun NewServerScreen(viewModel: MCHostViewModel, onDismiss: () -> Unit) {
                             ),
                         )
                         onDismiss()
-                    },
-                    enabled = eula && serverName.isNotBlank() && !creating && (!useCustom || customJarUri != null),
-                    colors = ButtonDefaults.buttonColors(containerColor = Accent),
-                ) { Text("Create server", color = Color.Black) }
-            }
+                    }
+                },
+                primaryEnabled = when {
+                    step == 1 -> jarStepValid
+                    step == 4 -> {
+                        val useCustom = jarType == JarType.CUSTOM || customJarUri != null
+                        eula && serverName.isNotBlank() && (!useCustom || customJarUri != null)
+                    }
+                    else -> true
+                } && !creating,
+                loading = creating,
+            )
         }
     }
 }
@@ -267,13 +287,33 @@ private fun BasicsStep(
     worldName: String,
     onWorldName: (String) -> Unit,
 ) {
-    Text("Basics", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+    OutlinedTextField(
+        serverName,
+        onServerName,
+        label = { Text("Server name") },
+        modifier = Modifier.fillMaxWidth(),
+        singleLine = true,
+        shape = RoundedCornerShape(12.dp),
+    )
+    if (serverName.isNotBlank()) {
+        Text("✓ Name available", color = Accent, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 4.dp))
+    }
+    Spacer(Modifier.height(12.dp))
+    OutlinedTextField(
+        worldName,
+        onWorldName,
+        label = { Text("World folder name") },
+        modifier = Modifier.fillMaxWidth(),
+        singleLine = true,
+        shape = RoundedCornerShape(12.dp),
+    )
     Spacer(Modifier.height(8.dp))
-    OutlinedTextField(serverName, onServerName, label = { Text("Server name") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-    Spacer(Modifier.height(8.dp))
-    OutlinedTextField(worldName, onWorldName, label = { Text("World folder name") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-    Spacer(Modifier.height(8.dp))
-    Text("Saved under files/MCHost/servers/", color = TextSecondary, style = MaterialTheme.typography.bodySmall)
+    Text(
+        "Saved under files/servers/",
+        color = TextSecondary,
+        style = MaterialTheme.typography.bodySmall,
+        fontFamily = JetBrainsMono,
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -293,8 +333,6 @@ private fun SoftwareStep(
     onCustomJarName: (String) -> Unit,
     onPickJar: () -> Unit,
 ) {
-    Text("Server software", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-    Spacer(Modifier.height(8.dp))
     ExposedDropdownMenuBox(expanded = jarExpanded, onExpandedChange = onJarExpanded) {
         OutlinedTextField(
             jarType.name,
@@ -303,6 +341,7 @@ private fun SoftwareStep(
             label = { Text("Platform") },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(jarExpanded) },
             modifier = Modifier.menuAnchor().fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
         )
         ExposedDropdownMenu(jarExpanded, { onJarExpanded(false) }) {
             JarType.entries.filter { it != JarType.CUSTOM }.forEach { type ->
@@ -322,6 +361,7 @@ private fun SoftwareStep(
                 label = { Text("Minecraft version") },
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(versionExpanded) },
                 modifier = Modifier.menuAnchor().fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
             )
             ExposedDropdownMenu(versionExpanded, { onVersionExpanded(false) }) {
                 versions.forEach { v ->
@@ -338,16 +378,20 @@ private fun SoftwareStep(
     Spacer(Modifier.height(12.dp))
     Text("Or import your own server jar", color = TextSecondary)
     Spacer(Modifier.height(4.dp))
-    OutlinedButton(onClick = onPickJar, modifier = Modifier.fillMaxWidth()) {
-        Icon(Icons.Default.FolderOpen, contentDescription = null)
-        Text(
-            if (customJarLabel != null) " $customJarLabel" else " Choose .jar file",
-            modifier = Modifier.padding(start = 8.dp),
-        )
-    }
+    CloudMcOutlinedButton(
+        text = if (customJarLabel != null) customJarLabel else "Choose .jar file",
+        onClick = onPickJar,
+        modifier = Modifier.fillMaxWidth(),
+    )
     if (customJarLabel != null) {
         Spacer(Modifier.height(8.dp))
-        OutlinedTextField(customJarName, onCustomJarName, label = { Text("Filename in server folder") }, modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(
+            customJarName,
+            onCustomJarName,
+            label = { Text("Filename in server folder") },
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
+        )
     }
 }
 
@@ -365,35 +409,21 @@ private fun AddonsStep(
     onImportDatapacks: () -> Unit,
     onBrowseModrinth: (ModrinthContentKind) -> Unit,
 ) {
-    Text("Plugins, mods & datapacks", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-    Spacer(Modifier.height(4.dp))
-    Text("Optional — add now or later from Files / Settings", color = TextSecondary, style = MaterialTheme.typography.bodySmall)
-    Spacer(Modifier.height(12.dp))
-
     if (supportsModrinthPlugins(jarType)) {
-        AddonCard(
-            title = "Plugins",
-            subtitle = "→ plugins/ • $pluginCount imported",
-            onImport = onImportPlugins,
-            onModrinth = { onBrowseModrinth(ModrinthContentKind.PLUGINS) },
-        )
+        AddonCard("Plugins", "→ plugins/ • $pluginCount imported", onImportPlugins) {
+            onBrowseModrinth(ModrinthContentKind.PLUGINS)
+        }
+        Spacer(Modifier.height(8.dp))
     }
     if (supportsModrinthMods(jarType)) {
+        AddonCard("Mods", "→ mods/ • $modCount imported", onImportMods) {
+            onBrowseModrinth(ModrinthContentKind.MODS)
+        }
         Spacer(Modifier.height(8.dp))
-        AddonCard(
-            title = "Mods",
-            subtitle = "→ mods/ • $modCount imported",
-            onImport = onImportMods,
-            onModrinth = { onBrowseModrinth(ModrinthContentKind.MODS) },
-        )
     }
-    Spacer(Modifier.height(8.dp))
-    AddonCard(
-        title = "Datapacks",
-        subtitle = "→ $worldName/datapacks/ • $datapackCount imported",
-        onImport = onImportDatapacks,
-        onModrinth = { onBrowseModrinth(ModrinthContentKind.DATAPACKS) },
-    )
+    AddonCard("Datapacks", "→ $worldName/datapacks/ • $datapackCount imported", onImportDatapacks) {
+        onBrowseModrinth(ModrinthContentKind.DATAPACKS)
+    }
     PendingModrinthList(modrinthPending, onRemoveModrinth)
 }
 
@@ -404,25 +434,13 @@ private fun AddonCard(
     onImport: () -> Unit,
     onModrinth: () -> Unit,
 ) {
-    Card(colors = CardDefaults.cardColors(containerColor = Surface)) {
-        Column(Modifier.padding(12.dp)) {
-            Text(title, fontWeight = FontWeight.SemiBold)
-            Text(subtitle, color = TextSecondary, style = MaterialTheme.typography.bodySmall)
-            Spacer(Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = onImport, modifier = Modifier.weight(1f)) {
-                    Icon(Icons.Default.FolderOpen, contentDescription = null)
-                    Text(" Import", modifier = Modifier.padding(start = 4.dp))
-                }
-                Button(
-                    onClick = onModrinth,
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = Accent),
-                ) {
-                    Icon(Icons.Default.CloudDownload, contentDescription = null, tint = Color.Black)
-                    Text(" Modrinth", color = Color.Black, modifier = Modifier.padding(start = 4.dp))
-                }
-            }
+    Column {
+        Text(title, fontWeight = FontWeight.SemiBold, color = TextPrimary)
+        Text(subtitle, color = TextSecondary, style = MaterialTheme.typography.bodySmall, fontFamily = JetBrainsMono)
+        Spacer(Modifier.height(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            CloudMcOutlinedButton("Import", onImport, Modifier.weight(1f))
+            CloudMcPrimaryButton("Modrinth", onModrinth, Modifier.weight(1f))
         }
     }
 }
@@ -437,14 +455,33 @@ private fun PerformanceStep(
     simulationDistance: Int,
     onSimulationDistance: (Int) -> Unit,
 ) {
-    Text("Performance", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-    Spacer(Modifier.height(8.dp))
-    Text("RAM: ${memoryMb}MB (max ~${maxMem}MB)")
-    Slider(memoryMb.toFloat(), { onMemory(it.toInt()) }, valueRange = 512f..maxMem.toFloat())
-    Text("View distance: $viewDistance")
-    Slider(viewDistance.toFloat(), { onViewDistance(it.toInt()) }, valueRange = 4f..16f)
-    Text("Simulation distance: $simulationDistance")
-    Slider(simulationDistance.toFloat(), { onSimulationDistance(it.toInt()) }, valueRange = 4f..16f)
+    Text("RAM ALLOCATION", style = MaterialTheme.typography.labelSmall, color = TextSecondary, fontFamily = JetBrainsMono)
+    Text("${memoryMb} MB", style = MaterialTheme.typography.headlineMedium, color = Accent, fontWeight = FontWeight.Bold)
+    Slider(
+        memoryMb.toFloat(),
+        { onMemory(it.toInt()) },
+        valueRange = 512f..maxMem.toFloat(),
+        colors = SliderDefaults.colors(thumbColor = Accent, activeTrackColor = Accent),
+    )
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text("512 MB", color = TextSecondary, style = MaterialTheme.typography.bodySmall)
+        Text("~${maxMem} MB", color = TextSecondary, style = MaterialTheme.typography.bodySmall)
+    }
+    Spacer(Modifier.height(16.dp))
+    Text("View distance: $viewDistance", color = TextPrimary)
+    Slider(
+        viewDistance.toFloat(),
+        { onViewDistance(it.toInt()) },
+        valueRange = 4f..16f,
+        colors = SliderDefaults.colors(thumbColor = Accent, activeTrackColor = Accent),
+    )
+    Text("Simulation distance: $simulationDistance", color = TextPrimary)
+    Slider(
+        simulationDistance.toFloat(),
+        { onSimulationDistance(it.toInt()) },
+        valueRange = 4f..16f,
+        colors = SliderDefaults.colors(thumbColor = Accent, activeTrackColor = Accent),
+    )
 }
 
 @Composable
@@ -453,13 +490,41 @@ private fun LaunchStep(
     onPort: (String) -> Unit,
     eula: Boolean,
     onEula: (Boolean) -> Unit,
+    serverName: String,
+    jarType: JarType,
+    version: String,
+    memoryMb: Int,
 ) {
-    Text("Launch", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+    Text("Configuration", fontWeight = FontWeight.Bold, color = TextPrimary)
     Spacer(Modifier.height(8.dp))
-    OutlinedTextField(port.toString(), onPort, label = { Text("Port") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+    ReviewRow("Server", serverName)
+    ReviewRow("Software", jarType.name)
+    ReviewRow("Version", version)
+    ReviewRow("RAM", "${memoryMb} MB")
+    Spacer(Modifier.height(12.dp))
+    OutlinedTextField(
+        port.toString(),
+        onPort,
+        label = { Text("Port") },
+        modifier = Modifier.fillMaxWidth(),
+        singleLine = true,
+        shape = RoundedCornerShape(12.dp),
+    )
     Spacer(Modifier.height(8.dp))
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Switch(eula, onEula)
-        Text("I accept the Minecraft EULA", modifier = Modifier.padding(start = 8.dp))
+        Switch(
+            eula,
+            onEula,
+            colors = SwitchDefaults.colors(checkedThumbColor = Accent, checkedTrackColor = Accent.copy(alpha = 0.35f)),
+        )
+        Text("I accept the Minecraft EULA", modifier = Modifier.padding(start = 8.dp), color = TextPrimary)
+    }
+}
+
+@Composable
+private fun ReviewRow(label: String, value: String) {
+    Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(label, color = TextSecondary, fontFamily = JetBrainsMono, style = MaterialTheme.typography.bodySmall)
+        Text(value, color = TextPrimary, fontWeight = FontWeight.Medium)
     }
 }

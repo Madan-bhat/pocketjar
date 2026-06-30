@@ -4,10 +4,10 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -26,29 +26,35 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.FileUpload
-import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Dns
+import androidx.compose.material.icons.filled.Extension
+import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.InsertDriveFile
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.ListItem
-import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -67,7 +73,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.graphics.vector.ImageVector
+import com.mchost.ui.theme.JetBrainsMono
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -78,11 +86,19 @@ import com.mchost.data.ServerFileEntry
 import com.mchost.network.modrinth.ModrinthContentKind
 import com.mchost.network.modrinth.supportsModrinthMods
 import com.mchost.network.modrinth.supportsModrinthPlugins
+import com.mchost.ui.components.CloudMcBackHeader
+import com.mchost.ui.components.CloudMcCard
+import com.mchost.ui.components.CloudMcConfirmDialog
+import com.mchost.ui.components.CloudMcPrimaryButton
+import com.mchost.ui.components.CloudMcTopBar
 import com.mchost.ui.components.ModrinthBrowseSheet
 import com.mchost.ui.theme.Accent
 import com.mchost.ui.theme.Background
+import com.mchost.ui.theme.BorderSubtle
+import com.mchost.ui.theme.ContainerRaised
 import com.mchost.ui.theme.ErrorRed
 import com.mchost.ui.theme.Surface as AppSurface
+import com.mchost.ui.theme.TextPrimary
 import com.mchost.ui.theme.TextSecondary
 import com.mchost.util.ServerFileAccess
 import com.mchost.viewmodel.MCHostViewModel
@@ -162,6 +178,9 @@ private fun FilesBrowser(
     var importing by remember { mutableStateOf(false) }
     var pendingImportTarget by remember { mutableStateOf<ImportTarget?>(null) }
     var modrinthBrowse by remember { mutableStateOf<ModrinthContentKind?>(null) }
+    var showSearch by remember { mutableStateOf(false) }
+    var showFabMenu by remember { mutableStateOf(false) }
+    var showImportMenu by remember { mutableStateOf(false) }
 
     modrinthBrowse?.let { kind ->
         ModrinthBrowseSheet(
@@ -253,43 +272,98 @@ private fun FilesBrowser(
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         containerColor = Background,
-        topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text("Server files", maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text(
-                            server.name,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = TextSecondary,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onDismiss) {
-                        Icon(Icons.Default.Close, contentDescription = "Close")
-                    }
-                },
-                actions = {
-                    IconButton(
-                        onClick = { startImport(ImportTarget.Current) },
+        floatingActionButton = {
+            Box {
+                FloatingActionButton(
+                    onClick = { showFabMenu = true },
+                    containerColor = Accent,
+                    shape = RoundedCornerShape(16.dp),
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = "Add", tint = Color.Black)
+                }
+                DropdownMenu(
+                    expanded = showFabMenu,
+                    onDismissRequest = { showFabMenu = false },
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("New file") },
+                        onClick = {
+                            showFabMenu = false
+                            createKind = CreateKind.FILE
+                            newName = ""
+                            createError = null
+                        },
+                        leadingIcon = { Icon(Icons.Default.Description, contentDescription = null) },
+                    )
+                    DropdownMenuItem(
+                        text = { Text("New folder") },
+                        onClick = {
+                            showFabMenu = false
+                            createKind = CreateKind.FOLDER
+                            newName = ""
+                            createError = null
+                        },
+                        leadingIcon = { Icon(Icons.Default.CreateNewFolder, contentDescription = null) },
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Import here") },
+                        onClick = {
+                            showFabMenu = false
+                            startImport(ImportTarget.Current)
+                        },
                         enabled = !importing,
-                    ) {
-                        Icon(Icons.Default.FileUpload, contentDescription = "Import here", tint = Accent)
+                        leadingIcon = { Icon(Icons.Default.FileUpload, contentDescription = null) },
+                    )
+                }
+            }
+        },
+        topBar = {
+            CloudMcTopBar(
+                onClose = onDismiss,
+                actions = {
+                    Box {
+                        IconButton(onClick = { showImportMenu = true }, enabled = !importing) {
+                            Icon(Icons.Default.MoreVert, contentDescription = "More", tint = Accent)
+                        }
+                        DropdownMenu(
+                            expanded = showImportMenu,
+                            onDismissRequest = { showImportMenu = false },
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Import plugin") },
+                                onClick = { showImportMenu = false; startImport(ImportTarget.Plugins) },
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Import mod") },
+                                onClick = { showImportMenu = false; startImport(ImportTarget.Mods) },
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Import datapack") },
+                                onClick = { showImportMenu = false; startImport(ImportTarget.Datapacks) },
+                            )
+                            val jarType = config?.jarType ?: JarType.PAPER
+                            if (supportsModrinthPlugins(jarType)) {
+                                DropdownMenuItem(
+                                    text = { Text("Browse plugins (Modrinth)") },
+                                    onClick = { showImportMenu = false; modrinthBrowse = ModrinthContentKind.PLUGINS },
+                                )
+                            }
+                            if (supportsModrinthMods(jarType)) {
+                                DropdownMenuItem(
+                                    text = { Text("Browse mods (Modrinth)") },
+                                    onClick = { showImportMenu = false; modrinthBrowse = ModrinthContentKind.MODS },
+                                )
+                            }
+                            DropdownMenuItem(
+                                text = { Text("Browse datapacks (Modrinth)") },
+                                onClick = { showImportMenu = false; modrinthBrowse = ModrinthContentKind.DATAPACKS },
+                            )
+                        }
                     }
-                    IconButton(onClick = { createKind = CreateKind.FOLDER; newName = ""; createError = null }) {
-                        Icon(Icons.Default.CreateNewFolder, contentDescription = "New folder", tint = Accent)
-                    }
-                    IconButton(onClick = { createKind = CreateKind.FILE; newName = ""; createError = null }) {
-                        Icon(Icons.Default.Add, contentDescription = "New file", tint = Accent)
+                    IconButton(onClick = { showSearch = !showSearch }) {
+                        Icon(Icons.Default.Search, contentDescription = "Search", tint = Accent)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = AppSurface,
-                    titleContentColor = MaterialTheme.colorScheme.onSurface,
-                ),
             )
         },
     ) { innerPadding ->
@@ -297,70 +371,41 @@ private fun FilesBrowser(
             Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .navigationBarsPadding(),
+                .navigationBarsPadding()
+                .padding(horizontal = 16.dp),
         ) {
-            PathBreadcrumb(path = path, onNavigate = { path = it })
-            Spacer(Modifier.height(8.dp))
-            OutlinedTextField(
-                value = filter,
-                onValueChange = { filter = it },
-                label = { Text("Search files") },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
-                singleLine = true,
-                shape = RoundedCornerShape(12.dp),
+            Text(
+                "Files",
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                color = TextPrimary,
             )
-            Spacer(Modifier.height(8.dp))
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                OutlinedButton(
-                    onClick = { startImport(ImportTarget.Plugins) },
-                    enabled = !importing,
-                ) {
-                    Text("Import plugin")
-                }
-                OutlinedButton(
-                    onClick = { startImport(ImportTarget.Mods) },
-                    enabled = !importing,
-                ) {
-                    Text("Import mod")
-                }
-                OutlinedButton(
-                    onClick = { startImport(ImportTarget.Datapacks) },
-                    enabled = !importing,
-                ) {
-                    Text("Import datapack")
-                }
-                val jarType = config?.jarType ?: JarType.PAPER
-                if (supportsModrinthPlugins(jarType)) {
-                    OutlinedButton(onClick = { modrinthBrowse = ModrinthContentKind.PLUGINS }, enabled = !importing) {
-                        Icon(Icons.Default.CloudDownload, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Text(" Plugin", modifier = Modifier.padding(start = 4.dp))
-                    }
-                }
-                if (supportsModrinthMods(jarType)) {
-                    OutlinedButton(onClick = { modrinthBrowse = ModrinthContentKind.MODS }, enabled = !importing) {
-                        Icon(Icons.Default.CloudDownload, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Text(" Mod", modifier = Modifier.padding(start = 4.dp))
-                    }
-                }
-                OutlinedButton(onClick = { modrinthBrowse = ModrinthContentKind.DATAPACKS }, enabled = !importing) {
-                    Icon(Icons.Default.CloudDownload, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Text(" Pack", modifier = Modifier.padding(start = 4.dp))
-                }
+            Text(
+                server.name,
+                style = MaterialTheme.typography.bodySmall,
+                color = TextSecondary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 2.dp, bottom = 12.dp),
+            )
+            PathBreadcrumb(path = path, onNavigate = { path = it })
+            if (showSearch) {
+                Spacer(Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = filter,
+                    onValueChange = { filter = it },
+                    placeholder = { Text("Search files", color = TextSecondary) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp),
+                )
             }
             importMessage?.let {
                 Text(
                     it,
                     color = Accent,
                     style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                    modifier = Modifier.padding(top = 8.dp),
                 )
             }
             actionError?.let {
@@ -368,10 +413,10 @@ private fun FilesBrowser(
                     it,
                     color = ErrorRed,
                     style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                    modifier = Modifier.padding(top = 8.dp),
                 )
             }
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(12.dp))
 
             when {
                 importing -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -385,21 +430,24 @@ private fun FilesBrowser(
                     CircularProgressIndicator(color = Accent)
                 }
                 entries.isEmpty() && path.isEmpty() -> Box(
-                    Modifier.fillMaxSize().padding(32.dp),
+                    Modifier
+                        .fillMaxSize()
+                        .border(1.dp, BorderSubtle, RoundedCornerShape(14.dp))
+                        .background(ContainerRaised, RoundedCornerShape(14.dp))
+                        .padding(32.dp),
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
-                        "This folder is empty.\nUse Import plugin/mod/datapack or + to add files.",
+                        "This folder is empty.\nTap + to add files or folders.",
                         color = TextSecondary,
                     )
                 }
                 else -> {
-                    Card(
+                    Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(horizontal = 16.dp),
-                        colors = CardDefaults.cardColors(containerColor = AppSurface),
-                        shape = RoundedCornerShape(12.dp),
+                            .border(1.dp, BorderSubtle, RoundedCornerShape(14.dp))
+                            .background(ContainerRaised, RoundedCornerShape(14.dp)),
                     ) {
                         LazyFileList(
                             path = path,
@@ -501,21 +549,68 @@ private fun PathBreadcrumb(path: String, onNavigate: (String) -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
+            .border(1.dp, BorderSubtle, RoundedCornerShape(12.dp))
+            .background(ContainerRaised, RoundedCornerShape(12.dp))
             .horizontalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp),
+            .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        TextButton(onClick = { onNavigate("") }) {
-            Text("root", color = Accent, fontFamily = FontFamily.Monospace)
-        }
+        BreadcrumbSegment(
+            label = "server",
+            icon = Icons.Default.Dns,
+            isLast = segments.isEmpty(),
+            onClick = { onNavigate("") },
+        )
         segments.forEachIndexed { index, segment ->
-            Text(" / ", color = TextSecondary)
+            Text(
+                " › ",
+                color = TextSecondary,
+                fontFamily = JetBrainsMono,
+                modifier = Modifier.padding(horizontal = 2.dp),
+            )
             val subPath = segments.take(index + 1).joinToString("/")
-            TextButton(onClick = { onNavigate(subPath) }) {
-                Text(segment, color = Accent, fontFamily = FontFamily.Monospace)
-            }
+            BreadcrumbSegment(
+                label = segment,
+                icon = breadcrumbIcon(segment, index == segments.lastIndex),
+                isLast = index == segments.lastIndex,
+                onClick = { onNavigate(subPath) },
+            )
         }
     }
+}
+
+@Composable
+private fun BreadcrumbSegment(
+    label: String,
+    icon: ImageVector,
+    isLast: Boolean,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.clickableNoRipple(onClick),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            icon,
+            contentDescription = null,
+            tint = if (isLast) Accent else TextSecondary,
+            modifier = Modifier.size(16.dp),
+        )
+        Text(
+            label,
+            color = if (isLast) TextPrimary else TextSecondary,
+            fontFamily = JetBrainsMono,
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.padding(start = 6.dp),
+        )
+    }
+}
+
+private fun breadcrumbIcon(segment: String, isLast: Boolean): ImageVector = when {
+    segment.equals("plugins", ignoreCase = true) -> Icons.Default.Extension
+    segment.equals("mods", ignoreCase = true) -> Icons.Default.Apps
+    isLast -> Icons.Default.FolderOpen
+    else -> Icons.Default.Folder
 }
 
 @Composable
@@ -528,57 +623,130 @@ private fun LazyFileList(
 ) {
     Column(Modifier.verticalScroll(rememberScrollState())) {
         if (path.isNotEmpty()) {
-            ListItem(
-                headlineContent = { Text("..") },
-                supportingContent = { Text("Parent folder", color = TextSecondary) },
-                leadingContent = {
-                    Icon(Icons.Default.Folder, contentDescription = null, tint = Accent)
-                },
-                modifier = Modifier.clickableNoRipple(onGoUp),
-                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+            FileListRow(
+                name = "..",
+                subtitle = "Parent folder",
+                icon = Icons.Default.Folder,
+                iconTint = TextSecondary,
+                subtitleColor = TextSecondary,
+                onClick = onGoUp,
             )
-            HorizontalDivider(color = TextSecondary.copy(alpha = 0.15f))
+            HorizontalDivider(color = BorderSubtle)
         }
         entries.forEach { entry ->
-            val editable = !entry.isDirectory && ServerFileAccess.isEditable(entry.name, entry.size)
-            ListItem(
-                headlineContent = {
-                    Text(entry.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                },
-                supportingContent = {
-                    if (entry.isDirectory) {
-                        Text("Folder", color = TextSecondary)
-                    } else {
-                        Text(
-                            buildString {
-                                append(formatSize(entry.size))
-                                if (editable) append(" · editable")
-                            },
-                            color = TextSecondary,
-                        )
-                    }
-                },
-                leadingContent = {
-                    Icon(
-                        when {
-                            entry.isDirectory -> Icons.Default.Folder
-                            editable -> Icons.Default.Description
-                            else -> Icons.Default.InsertDriveFile
-                        },
-                        contentDescription = null,
-                        tint = if (entry.isDirectory || editable) Accent else TextSecondary,
-                    )
-                },
-                trailingContent = {
-                    IconButton(onClick = { onDelete(entry) }) {
-                        Icon(Icons.Default.Delete, contentDescription = "Delete", tint = TextSecondary)
-                    }
-                },
-                modifier = Modifier.clickableNoRipple { onOpen(entry) },
-                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+            FileEntryRow(
+                entry = entry,
+                onOpen = onOpen,
+                onDelete = onDelete,
             )
-            HorizontalDivider(color = TextSecondary.copy(alpha = 0.1f))
+            HorizontalDivider(color = BorderSubtle)
         }
+    }
+}
+
+@Composable
+private fun FileEntryRow(
+    entry: ServerFileEntry,
+    onOpen: (ServerFileEntry) -> Unit,
+    onDelete: (ServerFileEntry) -> Unit,
+) {
+    val isJar = !entry.isDirectory && entry.name.endsWith(".jar", ignoreCase = true)
+    val editable = !entry.isDirectory && ServerFileAccess.isEditable(entry.name, entry.size)
+    var showMenu by remember(entry.path) { mutableStateOf(false) }
+
+    FileListRow(
+        name = entry.name,
+        subtitle = when {
+            entry.isDirectory -> "Folder"
+            else -> buildString {
+                append(formatSize(entry.size))
+                append(" • ")
+                append(formatRelativeTime(entry.modified))
+                if (editable) append(" • editable")
+            }
+        },
+        icon = when {
+            entry.isDirectory -> Icons.Default.Folder
+            isJar -> Icons.Default.Apps
+            editable -> Icons.Default.Description
+            else -> Icons.Default.InsertDriveFile
+        },
+        iconTint = when {
+            isJar -> Accent
+            entry.isDirectory -> TextPrimary
+            else -> TextSecondary
+        },
+        subtitleColor = if (isJar) Accent else TextSecondary,
+        onClick = { onOpen(entry) },
+        trailing = {
+            Box {
+                IconButton(onClick = { showMenu = true }) {
+                    Icon(
+                        Icons.Default.MoreVert,
+                        contentDescription = "More",
+                        tint = if (isJar) Accent else TextSecondary,
+                    )
+                }
+                DropdownMenu(
+                    expanded = showMenu,
+                    onDismissRequest = { showMenu = false },
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("Delete") },
+                        onClick = {
+                            showMenu = false
+                            onDelete(entry)
+                        },
+                        leadingIcon = {
+                            Icon(Icons.Default.Delete, contentDescription = null, tint = ErrorRed)
+                        },
+                    )
+                }
+            }
+        },
+    )
+}
+
+@Composable
+private fun FileListRow(
+    name: String,
+    subtitle: String,
+    icon: ImageVector,
+    iconTint: Color,
+    subtitleColor: Color = TextSecondary,
+    onClick: () -> Unit,
+    trailing: @Composable (() -> Unit)? = null,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickableNoRipple(onClick)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(icon, contentDescription = null, tint = iconTint, modifier = Modifier.size(22.dp))
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .padding(start = 14.dp),
+        ) {
+            Text(
+                name,
+                color = TextPrimary,
+                fontFamily = JetBrainsMono,
+                style = MaterialTheme.typography.bodyMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                subtitle,
+                color = subtitleColor,
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        trailing?.invoke()
     }
 }
 
@@ -631,78 +799,42 @@ fun FileEditorScreen(
 
     BackHandler { tryBack() }
 
-    Scaffold(
-        modifier = Modifier.fillMaxSize(),
-        containerColor = Background,
-        topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text(fileName, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text(
-                            relativePath,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = TextSecondary,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = { tryBack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                actions = {
-                    if (!readOnly && loadState?.content != null) {
-                        IconButton(
-                            onClick = { save() },
-                            enabled = dirty && !saving,
-                        ) {
-                            Icon(Icons.Default.Save, contentDescription = "Save", tint = if (dirty) Accent else TextSecondary)
-                        }
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = AppSurface),
-            )
-        },
-        bottomBar = {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .background(Background)
+            .navigationBarsPadding()
+            .imePadding(),
+    ) {
+        Row(
+            Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            CloudMcBackHeader(title = fileName, onBack = { tryBack() }, modifier = Modifier.weight(1f))
             if (!readOnly && loadState?.content != null) {
-                Surface(color = AppSurface, tonalElevation = 4.dp) {
-                    Column(
-                        Modifier
-                            .fillMaxWidth()
-                            .navigationBarsPadding()
-                            .imePadding()
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
-                    ) {
-                        when {
-                            saveError != null -> Text(saveError!!, color = ErrorRed, style = MaterialTheme.typography.bodySmall)
-                            dirty -> Text("Unsaved changes", color = Accent, style = MaterialTheme.typography.bodySmall)
-                            else -> Text("Saved", color = TextSecondary, style = MaterialTheme.typography.bodySmall)
-                        }
-                        Spacer(Modifier.height(8.dp))
-                        Button(
-                            onClick = { save() },
-                            enabled = dirty && !saving,
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.buttonColors(containerColor = Accent),
-                            shape = RoundedCornerShape(12.dp),
-                        ) {
-                            Icon(Icons.Default.Save, contentDescription = null, tint = Color.Black)
-                            Spacer(Modifier.size(8.dp))
-                            Text(if (saving) "Saving…" else "Save file", color = Color.Black)
-                        }
-                    }
+                IconButton(
+                    onClick = { save() },
+                    enabled = dirty && !saving,
+                ) {
+                    Icon(Icons.Default.Save, contentDescription = "Save", tint = if (dirty) Accent else TextSecondary)
                 }
             }
-        },
-    ) { innerPadding ->
+        }
+        Text(
+            relativePath,
+            style = MaterialTheme.typography.bodySmall,
+            color = TextSecondary,
+            fontFamily = JetBrainsMono,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 0.dp),
+        )
+
         when {
             loadState == null -> Box(
                 Modifier
                     .fillMaxSize()
-                    .padding(innerPadding),
+                    .weight(1f),
                 contentAlignment = Alignment.Center,
             ) {
                 CircularProgressIndicator(color = Accent)
@@ -710,57 +842,70 @@ fun FileEditorScreen(
             loadState?.error != null && loadState?.content == null -> Box(
                 Modifier
                     .fillMaxSize()
-                    .padding(innerPadding)
+                    .weight(1f)
                     .padding(24.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(loadState!!.error!!, color = ErrorRed)
             }
             else -> {
-                Card(
+                CloudMcCard(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .padding(innerPadding)
+                        .weight(1f)
                         .padding(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = EditorBg),
-                    shape = RoundedCornerShape(12.dp),
                 ) {
                     OutlinedTextField(
                         value = text,
                         onValueChange = { if (!readOnly) text = it },
                         readOnly = readOnly,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(8.dp),
+                        modifier = Modifier.fillMaxSize(),
                         textStyle = MaterialTheme.typography.bodySmall.copy(
-                            fontFamily = FontFamily.Monospace,
+                            fontFamily = JetBrainsMono,
                             color = Color(0xFFE8E8E8),
                         ),
                         keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None),
                         placeholder = {
-                            Text("File contents…", color = TextSecondary, fontFamily = FontFamily.Monospace)
+                            Text("File contents…", color = TextSecondary, fontFamily = JetBrainsMono)
                         },
                         shape = RoundedCornerShape(8.dp),
                     )
                 }
             }
         }
+
+        if (!readOnly && loadState?.content != null) {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+            ) {
+                when {
+                    saveError != null -> Text(saveError!!, color = ErrorRed, style = MaterialTheme.typography.bodySmall)
+                    dirty -> Text("Unsaved changes", color = Accent, style = MaterialTheme.typography.bodySmall)
+                    else -> Text("Saved", color = TextSecondary, style = MaterialTheme.typography.bodySmall)
+                }
+                Spacer(Modifier.height(8.dp))
+                CloudMcPrimaryButton(
+                    text = if (saving) "Saving…" else "Save file",
+                    onClick = { save() },
+                    enabled = dirty && !saving,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
     }
 
     if (showDiscardDialog) {
-        AlertDialog(
-            onDismissRequest = { showDiscardDialog = false },
-            title = { Text("Discard changes?") },
-            text = { Text("You have unsaved edits in $fileName.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    showDiscardDialog = false
-                    onBack()
-                }) { Text("Discard", color = ErrorRed) }
+        CloudMcConfirmDialog(
+            title = "Discard changes?",
+            message = "You have unsaved edits in $fileName.",
+            confirmText = "Discard",
+            onDismiss = { showDiscardDialog = false },
+            onConfirm = {
+                showDiscardDialog = false
+                onBack()
             },
-            dismissButton = {
-                TextButton(onClick = { showDiscardDialog = false }) { Text("Keep editing") }
-            },
+            destructive = true,
         )
     }
 }
@@ -773,6 +918,24 @@ private fun Modifier.clickableNoRipple(onClick: () -> Unit): Modifier {
 
 private fun formatSize(bytes: Long): String = when {
     bytes < 1024 -> "$bytes B"
-    bytes < 1024 * 1024 -> "${bytes / 1024} KB"
-    else -> "${bytes / (1024 * 1024)} MB"
+    bytes < 1024 * 1024 -> {
+        val kb = bytes / 1024.0
+        if (kb == kb.toLong().toDouble()) "${kb.toLong()} KB" else String.format("%.1f KB", kb)
+    }
+    else -> {
+        val mb = bytes / (1024.0 * 1024.0)
+        if (mb == mb.toLong().toDouble()) "${mb.toLong()} MB" else String.format("%.1f MB", mb)
+    }
+}
+
+private fun formatRelativeTime(epochMillis: Long): String {
+    val diffMs = (System.currentTimeMillis() - epochMillis).coerceAtLeast(0)
+    val minutes = diffMs / 60_000
+    return when {
+        minutes < 1 -> "just now"
+        minutes < 60 -> "${minutes}m ago"
+        minutes < 24 * 60 -> "${minutes / 60}h ago"
+        minutes < 7 * 24 * 60 -> "${minutes / (24 * 60)}d ago"
+        else -> "${minutes / (7 * 24 * 60)}w ago"
+    }
 }

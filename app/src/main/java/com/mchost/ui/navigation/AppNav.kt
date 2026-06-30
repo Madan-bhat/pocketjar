@@ -1,6 +1,10 @@
 package com.mchost.ui.navigation
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Backup
@@ -9,15 +13,20 @@ import androidx.compose.material.icons.filled.SettingsEthernet
 import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
@@ -33,6 +42,11 @@ import com.mchost.ui.screens.NewServerScreen
 import com.mchost.ui.screens.ServersScreen
 import com.mchost.ui.screens.SettingsScreen
 import com.mchost.ui.theme.Accent
+import com.mchost.ui.theme.Background
+import com.mchost.ui.theme.ContainerRaised
+import com.mchost.ui.theme.NavActivePurple
+import com.mchost.ui.theme.TextPrimary
+import com.mchost.ui.theme.TextSecondary
 import com.mchost.viewmodel.AppOverlay
 import com.mchost.viewmodel.MCHostViewModel
 
@@ -63,11 +77,16 @@ fun MCHostAppNav(viewModel: MCHostViewModel) {
     }
 
     Scaffold(
+        containerColor = Background,
         bottomBar = {
-            NavigationBar {
+            NavigationBar(
+                containerColor = ContainerRaised,
+                tonalElevation = 0.dp,
+            ) {
                 tabs.forEach { tab ->
+                    val selected = currentRoute == tab.route
                     NavigationBarItem(
-                        selected = currentRoute == tab.route,
+                        selected = selected,
                         onClick = {
                             navController.navigate(tab.route) {
                                 popUpTo(navController.graph.findStartDestination().id) { saveState = true }
@@ -75,8 +94,38 @@ fun MCHostAppNav(viewModel: MCHostViewModel) {
                                 restoreState = true
                             }
                         },
-                        icon = { Icon(tab.icon, contentDescription = tab.label) },
-                        label = { Text(tab.label) },
+                        icon = {
+                            Box(
+                                modifier = if (selected) {
+                                    Modifier
+                                        .background(NavActivePurple, RoundedCornerShape(16.dp))
+                                        .padding(horizontal = 16.dp, vertical = 4.dp)
+                                } else {
+                                    Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                                },
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(
+                                    tab.icon,
+                                    contentDescription = tab.label,
+                                    tint = if (selected) TextPrimary else TextSecondary,
+                                    modifier = Modifier.size(24.dp),
+                                )
+                            }
+                        },
+                        label = {
+                            Text(
+                                tab.label,
+                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                            )
+                        },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = TextPrimary,
+                            selectedTextColor = TextPrimary,
+                            unselectedIconColor = TextSecondary,
+                            unselectedTextColor = TextSecondary,
+                            indicatorColor = Color.Transparent,
+                        ),
                     )
                 }
             }
@@ -86,6 +135,7 @@ fun MCHostAppNav(viewModel: MCHostViewModel) {
                 FloatingActionButton(
                     onClick = { viewModel.showOverlay(AppOverlay.NEW_SERVER) },
                     containerColor = Accent,
+                    shape = RoundedCornerShape(16.dp),
                 ) {
                     Icon(Icons.Default.Add, contentDescription = "New server", tint = Color.Black)
                 }

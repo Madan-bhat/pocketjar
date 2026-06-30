@@ -24,6 +24,7 @@ data class ModrinthVersion(
     val filename: String,
     val downloadUrl: String,
     val primary: Boolean,
+    val gameVersions: List<String> = emptyList(),
 )
 
 data class ModrinthSearchResult(
@@ -57,3 +58,17 @@ fun supportsModrinthPlugins(jarType: JarType): Boolean =
 
 fun supportsModrinthMods(jarType: JarType): Boolean =
     jarType in setOf(JarType.FABRIC, JarType.CUSTOM)
+
+/** True when [supported] is the same release line as [target] (e.g. 1.21 ↔ 1.21.1). */
+fun modrinthVersionMatches(target: String, supported: String): Boolean {
+    if (target == supported) return true
+    val targetParts = target.split('.').map { it.toIntOrNull() ?: 0 }
+    val supportedParts = supported.split('.').map { it.toIntOrNull() ?: 0 }
+    val shared = minOf(targetParts.size, supportedParts.size, 2).coerceAtLeast(1)
+    return (0 until shared).all { targetParts[it] == supportedParts[it] }
+}
+
+fun ModrinthVersion.supportsGameVersion(target: String): Boolean {
+    if (gameVersions.isEmpty()) return true
+    return gameVersions.any { modrinthVersionMatches(target, it) }
+}

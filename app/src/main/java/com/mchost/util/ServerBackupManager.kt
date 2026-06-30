@@ -9,13 +9,10 @@ import java.io.BufferedInputStream
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
-enum class BackupType(val label: String, val prefix: String) {
-    WORLD("World", "world"),
-    FULL("Full server", "full"),
+enum class BackupType(val label: String) {
+    WORLD("World"),
+    FULL("Full server"),
 }
 
 data class ServerBackupInfo(
@@ -47,9 +44,7 @@ class ServerBackupManager(private val storage: StorageManager) {
         val serverDir = storage.resolveServerDir(server.id, server.name)
         if (!serverDir.exists()) throw IllegalStateException("Server folder not found")
 
-        val timestamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())
-        val safeName = server.name.replace(Regex("[^a-zA-Z0-9._-]"), "_").ifBlank { "server" }
-        val zipFile = File(backupsDir(server.id), "${type.prefix}-${safeName}-$timestamp.zip")
+        val zipFile = File(backupsDir(server.id), BackupArchiveNaming.createdArchiveName(type))
 
         when (type) {
             BackupType.WORLD -> {
@@ -80,7 +75,7 @@ class ServerBackupManager(private val storage: StorageManager) {
             BackupType.WORLD -> {
                 val worldDir = File(serverDir, worldName)
                 if (worldDir.exists()) worldDir.deleteRecursively()
-                unzipTo(backup.file, serverDir)
+                restoreWorldZip(backup.file, serverDir, worldName)
             }
             BackupType.FULL -> {
                 preserveAndRestoreFull(serverDir, backup.file)
@@ -91,6 +86,73 @@ class ServerBackupManager(private val storage: StorageManager) {
     fun deleteBackup(backup: ServerBackupInfo): Result<Unit> = runCatching {
         if (!backup.file.delete()) throw IllegalStateException("Could not delete backup")
     }
+
+    fun detectBackupType(zipFile: File, worldName: String): BackupType {
+        val entries = listZipEntryNames(zipFile).map { it.replace('\\', '/') }
+        if (entries.isEmpty()) return BackupType.FULL
+
+        val rootMarkers = setOf("server.properties", "eula.txt", "bukkit.yml", "spigot.yml", "paper.yml")
+        if (entries.any { path ->
+                val name = path.substringAfterLast('/')
+                name in rootMarkers || path in rootMarkers
+            }) {
+            return BackupType.FULL
+        }
+        if (entries.any { it == "plugins" || it.startsWith("plugins/") || it == "mods" || it.startsWith("mods/") }) {
+            return BackupType.FULL
+        }
+
+        val levelDatPaths = entries.filter { it.endsWith("level.dat") }
+        if (levelDatPaths.isNotEmpty()) {
+            val topLevel = entries.mapNotNull { entry ->
+                val slash = entry.indexOf('/')
+                if (slash < 0) null else entry.substring(0, slash)
+            }.distinct()
+            if (topLevel.size <= 1 && !entries.any { it.startsWith("plugins/") }) {
+                return BackupType.WORLD
+            }
+        }
+
+        if (entries.any { it.startsWith("$worldName/") }) return BackupType.WORLD
+        return BackupType.FULL
+    }
+
+    fun importBackupZip(
+        server: Server,
+        zipFile: File,
+        type: BackupType,
+        sourceBaseName: String,
+    ): Result<ServerBackupInfo> = runCatching {
+        val dest = File(
+            backupsDir(server.id),
+            BackupArchiveNaming.importedArchiveName(type, sourceBaseName),
+        )
+        zipFile.copyTo(dest, overwrite = true)
+        ServerBackupInfo(
+            id = dest.nameWithoutExtension,
+            serverId = server.id,
+            serverName = server.name,
+            type = type,
+            file = dest,
+            createdAt = dest.lastModified(),
+            sizeBytes = dest.length(),
+        )
+    }
+
+    fun restoreFromZip(server: Server, worldName: String, zipFile: File, type: BackupType): Result<Unit> =
+        restoreBackup(
+            server,
+            worldName,
+            ServerBackupInfo(
+                id = zipFile.nameWithoutExtension,
+                serverId = server.id,
+                serverName = server.name,
+                type = type,
+                file = zipFile,
+                createdAt = zipFile.lastModified(),
+                sizeBytes = zipFile.length(),
+            ),
+        )
 
     private fun preserveAndRestoreFull(serverDir: File, zipFile: File) {
         val preserved = listOf(".tmp", "logs").mapNotNull { name ->
@@ -156,6 +218,50 @@ class ServerBackupManager(private val storage: StorageManager) {
         zos.closeArchiveEntry()
     }
 
+    private fun restoreWorldZip(zipFile: File, serverDir: File, worldName: String) {
+        val entries = listZipEntryNames(zipFile).map { it.replace('\\', '/') }
+        val worldDir = File(serverDir, worldName)
+
+        when {
+            entries.any { it.startsWith("$worldName/") } -> unzipTo(zipFile, serverDir)
+            entries.any { it == "level.dat" || it.endsWith("/level.dat") && !it.removeSuffix("/level.dat").contains('/') } -> {
+                worldDir.mkdirs()
+                unzipTo(zipFile, worldDir)
+            }
+            else -> {
+                val topFolders = entries.mapNotNull { entry ->
+                    val slash = entry.indexOf('/')
+                    if (slash < 0) null else entry.substring(0, slash)
+                }.distinct()
+                if (topFolders.size == 1) {
+                    val temp = File(serverDir, ".restore-world-tmp")
+                    if (temp.exists()) temp.deleteRecursively()
+                    unzipTo(zipFile, temp)
+                    val source = File(temp, topFolders.first())
+                    if (source.exists()) {
+                        source.copyRecursively(worldDir, overwrite = true)
+                    }
+                    temp.deleteRecursively()
+                } else {
+                    worldDir.mkdirs()
+                    unzipTo(zipFile, worldDir)
+                }
+            }
+        }
+    }
+
+    private fun listZipEntryNames(zipFile: File): List<String> {
+        val names = mutableListOf<String>()
+        ZipArchiveInputStream(BufferedInputStream(FileInputStream(zipFile))).use { zis ->
+            var entry = zis.nextEntry
+            while (entry != null) {
+                names.add(entry.name)
+                entry = zis.nextEntry
+            }
+        }
+        return names
+    }
+
     private fun unzipTo(zipFile: File, destDir: File) {
         destDir.mkdirs()
         ZipArchiveInputStream(BufferedInputStream(FileInputStream(zipFile))).use { zis ->
@@ -182,12 +288,8 @@ class ServerBackupManager(private val storage: StorageManager) {
     }
 
     private fun parseBackupFile(server: Server, file: File): ServerBackupInfo? {
+        val type = BackupArchiveNaming.parseType(file.name) ?: return null
         val name = file.nameWithoutExtension
-        val type = when {
-            name.startsWith("world-") -> BackupType.WORLD
-            name.startsWith("full-") -> BackupType.FULL
-            else -> return null
-        }
         return ServerBackupInfo(
             id = name,
             serverId = server.id,

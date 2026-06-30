@@ -2,19 +2,17 @@ package com.mchost.ui.theme
 
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.Typography
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.sp
 
-val Background = Color(0xFF0D0D0D)
+val Background = Color(0xFF121212)
 val Surface = Color(0xFF161A14)
-val Accent = Color(0xFF39FF14)
+val Accent = Color(0xFF4ADE80)
 val TextPrimary = Color(0xFFFFFFFF)
-val TextSecondary = Color(0xFF8A8A8A)
+val TextSecondary = Color(0xFF9CA3AF)
+val BorderSubtle = Color(0xFF333333)
+val ContainerRaised = Color(0xFF1E1E1E)
+val NavActivePurple = Color(0xFF7C3AED)
 val ErrorRed = Color(0xFFEF4444)
 val WarnAmber = Color(0xFFF59E0B)
 
@@ -26,11 +24,6 @@ private val DarkColorScheme = darkColorScheme(
     onBackground = TextPrimary,
     onSurface = TextPrimary,
     error = ErrorRed,
-)
-
-private val AppTypography = Typography(
-    bodyLarge = TextStyle(fontFamily = FontFamily.Default, fontWeight = FontWeight.Normal, fontSize = 16.sp),
-    labelSmall = TextStyle(fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Normal, fontSize = 12.sp),
 )
 
 @Composable

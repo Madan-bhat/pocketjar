@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -23,38 +24,41 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontFamily
+import com.mchost.ui.theme.JetBrainsMono
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mchost.data.ForwardingMethod
 import com.mchost.data.ServerStatus
 import com.mchost.network.ForwardingStatus
+import com.mchost.ui.components.CloudMcBrandRow
+import com.mchost.ui.components.CloudMcCard
+import com.mchost.ui.components.CloudMcOutlinedButton
+import com.mchost.ui.components.CloudMcPageHeader
+import com.mchost.ui.components.CloudMcPrimaryButton
+import com.mchost.ui.components.CloudMcSectionTitle
 import com.mchost.ui.theme.Accent
+import com.mchost.ui.theme.Background
 import com.mchost.ui.theme.ErrorRed
-import com.mchost.ui.theme.Surface
+import com.mchost.ui.theme.TextPrimary
 import com.mchost.ui.theme.TextSecondary
 import com.mchost.ui.theme.WarnAmber
 import com.mchost.viewmodel.MCHostViewModel
@@ -84,21 +88,20 @@ fun NetworkScreen(viewModel: MCHostViewModel) {
     Column(
         Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(Background)
             .verticalScroll(rememberScrollState())
             .padding(16.dp),
     ) {
-        Text("Port forwarding", style = MaterialTheme.typography.headlineMedium)
-        Spacer(Modifier.height(4.dp))
-        Text(
-            "Let friends join from outside your Wi‑Fi",
-            color = TextSecondary,
-            style = MaterialTheme.typography.bodyMedium,
+        CloudMcBrandRow()
+        Spacer(Modifier.height(12.dp))
+        CloudMcPageHeader(
+            title = "Network",
+            subtitle = "Let friends join from outside your Wi‑Fi",
         )
         Spacer(Modifier.height(16.dp))
 
         StatusCard(forwardInfo.status, forwardInfo.message, isApplying)
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(12.dp))
 
         AddressCard(
             title = "Share with friends",
@@ -118,8 +121,7 @@ fun NetworkScreen(viewModel: MCHostViewModel) {
         )
 
         Spacer(Modifier.height(16.dp))
-
-        Text("Method", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        CloudMcSectionTitle("Method")
         Spacer(Modifier.height(8.dp))
         ForwardingMethod.entries.forEach { method ->
             ForwardingCard(
@@ -134,7 +136,8 @@ fun NetworkScreen(viewModel: MCHostViewModel) {
 
         Spacer(Modifier.height(16.dp))
 
-        Button(
+        CloudMcPrimaryButton(
+            text = if (isApplying) "Applying…" else if (serverRunning) "Apply port forward" else "Test port forward",
             onClick = {
                 viewModel.applyNetworkForwarding(
                     method = prefs.forwardingMethod,
@@ -158,25 +161,7 @@ fun NetworkScreen(viewModel: MCHostViewModel) {
             },
             enabled = !isApplying,
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = Accent),
-            shape = RoundedCornerShape(12.dp),
-        ) {
-            if (isApplying) {
-                CircularProgressIndicator(
-                    modifier = Modifier.height(20.dp),
-                    color = Color.Black,
-                    strokeWidth = 2.dp,
-                )
-                Spacer(Modifier.padding(4.dp))
-            } else {
-                Icon(Icons.Default.Refresh, contentDescription = null, tint = Color.Black)
-                Spacer(Modifier.padding(4.dp))
-            }
-            Text(
-                if (isApplying) "Applying…" else if (serverRunning) "Apply port forward" else "Test port forward",
-                color = Color.Black,
-            )
-        }
+        )
 
         if (!serverRunning) {
             Spacer(Modifier.height(8.dp))
@@ -225,12 +210,8 @@ private fun StatusCard(status: ForwardingStatus, message: String, applying: Bool
         status == ForwardingStatus.MANUAL -> Triple(Icons.Default.Warning, WarnAmber, "Manual setup required")
         else -> Triple(Icons.Default.Warning, TextSecondary, "Not configured")
     }
-    Card(
-        colors = CardDefaults.cardColors(containerColor = Surface),
-        shape = RoundedCornerShape(12.dp),
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+    CloudMcCard(accentStripe = status == ForwardingStatus.ACTIVE) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(icon, contentDescription = null, tint = color)
             Column(Modifier.padding(start = 12.dp)) {
                 Text(label, fontWeight = FontWeight.Bold, color = color)
@@ -244,24 +225,18 @@ private fun StatusCard(status: ForwardingStatus, message: String, applying: Bool
 
 @Composable
 private fun AddressCard(title: String, address: String, subtitle: String, onCopy: () -> Unit) {
-    Card(
-        colors = CardDefaults.cardColors(containerColor = Surface),
-        shape = RoundedCornerShape(12.dp),
-        modifier = Modifier.fillMaxWidth(),
-    ) {
+    CloudMcCard {
         Row(
-            Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
+            Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(Modifier.weight(1f)) {
-                Text(title, style = MaterialTheme.typography.labelMedium, color = TextSecondary)
-                Text(address, fontFamily = FontFamily.Monospace, color = Accent, fontWeight = FontWeight.Bold)
+                Text(title.uppercase(), style = MaterialTheme.typography.labelSmall, color = TextSecondary, fontFamily = JetBrainsMono)
+                Text(address, fontFamily = JetBrainsMono, color = Accent, fontWeight = FontWeight.Bold)
                 Text(subtitle, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
             }
             IconButton(onClick = onCopy) {
-                Icon(Icons.Default.ContentCopy, contentDescription = "Copy", tint = TextSecondary)
+                Icon(Icons.Default.ContentCopy, contentDescription = "Copy", tint = Accent)
             }
         }
     }
@@ -294,34 +269,30 @@ private fun ManualHelpCard(method: ForwardingMethod, port: Int, localIp: String)
             "Share the tunnel address with friends.",
         )
     }
-    Card(
-        colors = CardDefaults.cardColors(containerColor = Surface),
-        shape = RoundedCornerShape(12.dp),
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text("How it works", fontWeight = FontWeight.Bold)
-            steps.forEachIndexed { i, step ->
-                Text("${i + 1}. $step", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
-            }
+    CloudMcCard {
+        Text("How it works", fontWeight = FontWeight.Bold, color = TextPrimary)
+        Spacer(Modifier.height(8.dp))
+        steps.forEachIndexed { i, step ->
+            Text("${i + 1}. $step", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
         }
     }
 }
 
 @Composable
 private fun ForwardingCard(title: String, description: String, selected: Boolean, onSelect: () -> Unit) {
-    Card(
+    CloudMcCard(
         modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        colors = CardDefaults.cardColors(containerColor = Surface),
-        shape = RoundedCornerShape(12.dp),
-        onClick = onSelect,
+            .padding(vertical = 4.dp)
+            .clickable(onClick = onSelect),
     ) {
-        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            RadioButton(selected = selected, onClick = onSelect)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            RadioButton(
+                selected = selected,
+                onClick = onSelect,
+                colors = RadioButtonDefaults.colors(selectedColor = Accent),
+            )
             Column {
-                Text(title, style = MaterialTheme.typography.titleMedium)
+                Text(title, style = MaterialTheme.typography.titleMedium, color = TextPrimary)
                 Text(description, color = TextSecondary, style = MaterialTheme.typography.bodySmall)
             }
         }
@@ -339,7 +310,7 @@ private fun methodDescription(method: ForwardingMethod, port: Int, localIp: Stri
     ForwardingMethod.UPNP -> "Best default — configures router automatically"
     ForwardingMethod.MANUAL -> "Forward TCP $port → $localIp in router settings"
     ForwardingMethod.TAILSCALE -> "Private mesh VPN, no router changes"
-        ForwardingMethod.LOCALXPOSE -> "Termux tunnel or paste address below"
+    ForwardingMethod.LOCALXPOSE -> "Termux tunnel or paste address below"
 }
 
 @Composable
@@ -359,76 +330,70 @@ private fun LocalXposeConfigCard(
     var regionInput by remember(region) { mutableStateOf(region) }
     var manualInput by remember(manualAddress) { mutableStateOf(manualAddress) }
     val termuxCmd = com.mchost.network.LocalXposeAgent.termuxCommand(port, regionInput.ifBlank { "ap" })
-    Card(
-        colors = CardDefaults.cardColors(containerColor = Surface),
-        shape = RoundedCornerShape(12.dp),
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("LocalXpose (recommended: Termux)", fontWeight = FontWeight.Bold)
-            Text(
-                "In-app loclx often fails on Android. Run this in Termux, then paste the address below.",
-                style = MaterialTheme.typography.bodySmall,
-                color = TextSecondary,
-            )
-            OutlinedTextField(
-                value = manualInput,
-                onValueChange = {
-                    manualInput = it
-                    onManualChange(it)
-                },
-                label = { Text("Tunnel address (required)") },
-                placeholder = { Text("ap.loclx.io:12345") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-            )
-            OutlinedButton(
-                onClick = { copyToClipboard(context, termuxCmd) },
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text("Copy Termux command")
-            }
-            Text(
-                termuxCmd,
-                style = MaterialTheme.typography.bodySmall,
-                fontFamily = FontFamily.Monospace,
-                color = TextSecondary,
-            )
-            Text("Optional — in-app tunnel", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelLarge)
-            OutlinedTextField(
-                value = tokenInput,
-                onValueChange = {
-                    tokenInput = it
-                    onTokenChange(it)
-                },
-                label = { Text("Access token") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                visualTransformation = PasswordVisualTransformation(),
-            )
-            OutlinedTextField(
-                value = regionInput,
-                onValueChange = {
-                    val v = it.lowercase().take(2)
-                    regionInput = v
-                    onRegionChange(v)
-                },
-                label = { Text("Region (ap, us, eu)") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = onGetToken, modifier = Modifier.weight(1f)) {
-                    Text("Get token")
-                }
-                Button(
-                    onClick = { onSave(tokenInput, regionInput.ifBlank { "ap" }, manualInput) },
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = Accent),
-                ) {
-                    Text("Save", color = Color.Black)
-                }
-            }
+    CloudMcCard {
+        Text("LocalXpose (recommended: Termux)", fontWeight = FontWeight.Bold, color = TextPrimary)
+        Text(
+            "In-app loclx often fails on Android. Run this in Termux, then paste the address below.",
+            style = MaterialTheme.typography.bodySmall,
+            color = TextSecondary,
+        )
+        Spacer(Modifier.height(8.dp))
+        OutlinedTextField(
+            value = manualInput,
+            onValueChange = {
+                manualInput = it
+                onManualChange(it)
+            },
+            label = { Text("Tunnel address (required)") },
+            placeholder = { Text("ap.loclx.io:12345") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            shape = RoundedCornerShape(12.dp),
+        )
+        Spacer(Modifier.height(8.dp))
+        CloudMcOutlinedButton(
+            text = "Copy Termux command",
+            onClick = { copyToClipboard(context, termuxCmd) },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Text(
+            termuxCmd,
+            style = MaterialTheme.typography.bodySmall,
+            fontFamily = JetBrainsMono,
+            color = TextSecondary,
+            modifier = Modifier.padding(top = 8.dp),
+        )
+        Spacer(Modifier.height(12.dp))
+        Text("Optional — in-app tunnel", fontWeight = FontWeight.Bold, color = TextPrimary)
+        OutlinedTextField(
+            value = tokenInput,
+            onValueChange = {
+                tokenInput = it
+                onTokenChange(it)
+            },
+            label = { Text("Access token") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            visualTransformation = PasswordVisualTransformation(),
+            shape = RoundedCornerShape(12.dp),
+        )
+        Spacer(Modifier.height(8.dp))
+        OutlinedTextField(
+            value = regionInput,
+            onValueChange = {
+                val v = it.lowercase().take(2)
+                regionInput = v
+                onRegionChange(v)
+            },
+            label = { Text("Region (ap, us, eu)") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            shape = RoundedCornerShape(12.dp),
+        )
+        Spacer(Modifier.height(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            CloudMcOutlinedButton("Get token", onGetToken, Modifier.weight(1f))
+            CloudMcPrimaryButton("Save", { onSave(tokenInput, regionInput.ifBlank { "ap" }, manualInput) }, Modifier.weight(1f))
         }
     }
 }

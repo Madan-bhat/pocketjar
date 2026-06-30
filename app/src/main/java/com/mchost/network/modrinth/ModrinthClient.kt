@@ -63,12 +63,24 @@ class ModrinthClient(
         jarType: JarType,
     ): Result<List<ModrinthVersion>> = runCatching {
         val loaders = modrinthLoaders(jarType, kind)
-        val loaderParam = loaders.joinToString(",") { "\"$it\"" }
         val versionParam = URLEncoder.encode("[\"$gameVersion\"]", Charsets.UTF_8.name())
-        val loaderEncoded = URLEncoder.encode("[$loaderParam]", Charsets.UTF_8.name())
-        val url = "$BASE/project/$projectId/version?game_versions=$versionParam&loaders=$loaderEncoded"
-        getJsonArray(url).mapNotNull { el -> parseVersion(el.asJsonObject) }
-            .sortedByDescending { it.versionNumber }
+        val baseUrl = "$BASE/project/$projectId/version"
+
+        val filteredUrl = buildString {
+            append(baseUrl)
+            append("?game_versions=").append(versionParam)
+            if (loaders.isNotEmpty()) {
+                val loaderParam = loaders.joinToString(",") { "\"$it\"" }
+                append("&loaders=").append(URLEncoder.encode("[$loaderParam]", Charsets.UTF_8.name()))
+            }
+        }
+
+        var versions = fetchVersions(filteredUrl)
+        if (versions.isEmpty()) {
+            val allVersions = fetchVersions(baseUrl)
+            versions = allVersions.filter { it.supportsGameVersion(gameVersion) }
+        }
+        versions.sortedByDescending { it.versionNumber }
     }
 
     suspend fun getVersion(versionId: String): Result<ModrinthVersion> = runCatching {
@@ -83,6 +95,9 @@ class ModrinthClient(
         destFile
     }
 
+    private fun fetchVersions(url: String): List<ModrinthVersion> =
+        getJsonArray(url).mapNotNull { el -> parseVersion(el.asJsonObject) }
+
     private fun parseVersion(obj: JsonObject): ModrinthVersion? {
         val id = obj.get("id")?.asString ?: return null
         val versionNumber = obj.get("version_number")?.asString ?: id
@@ -92,12 +107,14 @@ class ModrinthClient(
             ?: return null
         val filename = fileObj.get("filename")?.asString ?: return null
         val url = fileObj.get("url")?.asString ?: return null
+        val gameVersions = obj.getAsJsonArray("game_versions")?.mapNotNull { it.asString } ?: emptyList()
         return ModrinthVersion(
             id = id,
             versionNumber = versionNumber,
             filename = filename,
             downloadUrl = url,
             primary = fileObj.get("primary")?.asBoolean == true,
+            gameVersions = gameVersions,
         )
     }
 

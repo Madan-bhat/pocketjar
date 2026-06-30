@@ -1,6 +1,7 @@
 package com.mchost.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -23,10 +24,9 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
@@ -44,15 +44,20 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontFamily
+import com.mchost.ui.theme.JetBrainsMono
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mchost.data.ServerStatus
+import com.mchost.ui.components.CloudMcBrandRow
+import com.mchost.ui.components.CloudMcPageHeader
 import com.mchost.ui.theme.Accent
+import com.mchost.ui.theme.Background
+import com.mchost.ui.theme.BorderSubtle
+import com.mchost.ui.theme.ContainerRaised
 import com.mchost.ui.theme.ErrorRed
-import com.mchost.ui.theme.Surface
+import com.mchost.ui.theme.TextPrimary
 import com.mchost.ui.theme.TextSecondary
 import com.mchost.ui.theme.WarnAmber
 import com.mchost.ui.theme.logColor
@@ -98,41 +103,38 @@ fun ConsoleScreen(viewModel: MCHostViewModel) {
     Column(
         Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(Background)
             .imePadding(),
     ) {
+        CloudMcBrandRow(Modifier.padding(horizontal = 16.dp, vertical = 12.dp))
+        Spacer(Modifier.height(12.dp))
         Row(
             Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 8.dp),
+                .padding(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column(Modifier.weight(1f)) {
-                Text("Console", style = MaterialTheme.typography.headlineSmall)
-                Text(
-                    when (server?.status) {
-                        ServerStatus.RUNNING -> "Connected — type commands below"
-                        ServerStatus.STARTING -> "Server starting…"
-                        ServerStatus.STOPPING -> "Server stopping…"
-                        else -> "Server offline — start from Home tab"
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = when (server?.status) {
-                        ServerStatus.RUNNING -> Accent
-                        ServerStatus.STARTING, ServerStatus.STOPPING -> WarnAmber
-                        else -> TextSecondary
-                    },
-                )
-            }
+            CloudMcPageHeader(
+                title = "Console",
+                subtitle = when (server?.status) {
+                    ServerStatus.RUNNING -> "Connected — type commands below"
+                    ServerStatus.STARTING -> "Server starting…"
+                    ServerStatus.STOPPING -> "Server stopping…"
+                    else -> "Server offline — start from Home tab"
+                },
+                modifier = Modifier.weight(1f),
+            )
             IconButton(onClick = { viewModel.clearLogs() }) {
-                Icon(Icons.Default.DeleteSweep, contentDescription = "Clear logs", tint = TextSecondary)
+                Icon(Icons.Default.DeleteSweep, contentDescription = "Clear logs", tint = Accent)
             }
         }
 
         Row(
             Modifier
+                .fillMaxWidth()
                 .horizontalScroll(rememberScrollState())
-                .padding(horizontal = 12.dp),
+                .padding(horizontal = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             FilterChip(
@@ -151,13 +153,13 @@ fun ConsoleScreen(viewModel: MCHostViewModel) {
 
         Spacer(Modifier.height(8.dp))
 
-        Card(
+        Box(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp),
-            colors = CardDefaults.cardColors(containerColor = TerminalBg),
-            shape = RoundedCornerShape(12.dp),
+                .padding(horizontal = 16.dp)
+                .border(1.dp, BorderSubtle, RoundedCornerShape(14.dp))
+                .background(TerminalBg, RoundedCornerShape(14.dp)),
         ) {
             if (displayed.isEmpty()) {
                 Box(Modifier.fillMaxSize().padding(16.dp), contentAlignment = Alignment.Center) {
@@ -185,7 +187,7 @@ fun ConsoleScreen(viewModel: MCHostViewModel) {
                         Text(
                             entry.message,
                             color = logColor(entry.level),
-                            fontFamily = FontFamily.Monospace,
+                            fontFamily = JetBrainsMono,
                             style = MaterialTheme.typography.bodySmall,
                         )
                     }
@@ -198,8 +200,8 @@ fun ConsoleScreen(viewModel: MCHostViewModel) {
         Column(
             Modifier
                 .fillMaxWidth()
-                .background(Surface)
-                .padding(12.dp),
+                .background(ContainerRaised)
+                .padding(16.dp),
         ) {
             Row(
                 Modifier.horizontalScroll(rememberScrollState()),
@@ -210,7 +212,7 @@ fun ConsoleScreen(viewModel: MCHostViewModel) {
                         selected = false,
                         onClick = { submitCommand(quick) },
                         enabled = canSend || quick == "help",
-                        label = { Text(quick) },
+                        label = { Text(quick, fontFamily = JetBrainsMono) },
                         colors = chipColors(),
                     )
                 }
@@ -238,7 +240,7 @@ fun ConsoleScreen(viewModel: MCHostViewModel) {
                     },
                     singleLine = true,
                     shape = RoundedCornerShape(12.dp),
-                    textStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
+                    textStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = JetBrainsMono),
                     keyboardOptions = KeyboardOptions(
                         capitalization = KeyboardCapitalization.None,
                         imeAction = ImeAction.Send,
@@ -267,7 +269,7 @@ fun ConsoleScreen(viewModel: MCHostViewModel) {
                     Text("Recent: ", color = TextSecondary, style = MaterialTheme.typography.labelSmall)
                     history.takeLast(3).reversed().forEach { past ->
                         TextButton(onClick = { command = past }) {
-                            Text(past, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.labelSmall)
+                            Text(past, fontFamily = JetBrainsMono, style = MaterialTheme.typography.labelSmall, color = Accent)
                         }
                     }
                 }
@@ -280,6 +282,6 @@ fun ConsoleScreen(viewModel: MCHostViewModel) {
 private fun chipColors() = FilterChipDefaults.filterChipColors(
     selectedContainerColor = Accent.copy(alpha = 0.2f),
     selectedLabelColor = Accent,
-    containerColor = Surface,
+    containerColor = ContainerRaised,
     labelColor = TextSecondary,
 )

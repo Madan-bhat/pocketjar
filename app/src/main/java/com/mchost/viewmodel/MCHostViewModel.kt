@@ -34,6 +34,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import com.mchost.util.BackupType
+import com.mchost.util.BackupArchiveNaming
 import com.mchost.util.FileImporter
 import com.mchost.util.ServerBackupInfo
 import com.mchost.util.ServerBackupManager
@@ -58,6 +59,13 @@ data class TextFileLoadResult(
     val content: String? = null,
     val error: String? = null,
     val readOnly: Boolean = false,
+)
+
+data class ExternalBackupPreview(
+    val displayName: String,
+    val sizeBytes: Long,
+    val detectedType: BackupType,
+    val tempFile: File,
 )
 
 class MCHostViewModel(app: Application) : AndroidViewModel(app) {
@@ -512,6 +520,51 @@ class MCHostViewModel(app: Application) : AndroidViewModel(app) {
         backupManager.deleteBackup(backup)
     }
 
+    suspend fun prepareExternalBackup(uri: Uri): Result<ExternalBackupPreview> = withContext(Dispatchers.IO) {
+        runCatching {
+            val context = getApplication<Application>()
+            val displayName = FileImporter.queryDisplayName(context, uri) ?: "backup.zip"
+            val temp = BackupArchiveNaming.restoreStagingFile(context.cacheDir)
+            FileImporter.copyUri(context, uri, temp)
+            val server = activeServer.value
+            val worldName = configs.value[server?.id]?.worldName ?: "world"
+            val detected = backupManager.detectBackupType(temp, worldName)
+            ExternalBackupPreview(
+                displayName = displayName,
+                sizeBytes = temp.length(),
+                detectedType = detected,
+                tempFile = temp,
+            )
+        }
+    }
+
+    suspend fun restoreExternalBackup(
+        server: Server,
+        preview: ExternalBackupPreview,
+        type: BackupType,
+        saveCopy: Boolean,
+    ): Result<Unit> = withContext(Dispatchers.IO) {
+        _backupInProgress.value = true
+        try {
+            if (server.status == ServerStatus.RUNNING || server.status == ServerStatus.STARTING) {
+                return@withContext Result.failure(IllegalStateException("Stop the server before restoring"))
+            }
+            val config = configs.value[server.id]
+                ?: return@withContext Result.failure(IllegalStateException("Server config not found"))
+            val result = backupManager.restoreFromZip(server, config.worldName, preview.tempFile, type)
+            result.onSuccess {
+                if (saveCopy) {
+                    backupManager.importBackupZip(server, preview.tempFile, type, preview.displayName)
+                }
+                LogBus.emit(com.mchost.data.LogLevel.INFO, "Restored from ${preview.displayName}")
+            }
+            result
+        } finally {
+            preview.tempFile.delete()
+            _backupInProgress.value = false
+        }
+    }
+
     suspend fun modrinthGameVersions(): List<String> = withContext(Dispatchers.IO) {
         modrinthClient.fetchGameVersions().getOrElse {
             listOf("1.21.4", "1.21.3", "1.21.1", "1.20.4", "1.20.1")
@@ -523,8 +576,10 @@ class MCHostViewModel(app: Application) : AndroidViewModel(app) {
         kind: ModrinthContentKind,
         gameVersion: String,
         jarType: com.mchost.data.JarType,
+        offset: Int = 0,
+        limit: Int = 20,
     ): Result<ModrinthSearchResult> = withContext(Dispatchers.IO) {
-        modrinthClient.search(query, kind, gameVersion, jarType)
+        modrinthClient.search(query, kind, gameVersion, jarType, offset, limit)
     }
 
     suspend fun modrinthProjectVersions(
